@@ -1,0 +1,102 @@
+---
+title: "EOF analysis on Sea Surface Temperature"
+author: "Sutesna Mondal"
+date: "2023-11-28"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+##required libraries
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+library(ncdf4)
+library(maps)
+library(fields)
+library(RColorBrewer)
+
+```
+
+##Install the necessary package for NetCDF
+
+#Import the netCDF file
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+getwd()
+nc <- nc_open("data.nc")
+print(nc,1)
+
+```
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+#set coordinate variable: X,Y
+lat <- ncvar_get(nc,"Y")
+lon <- ncvar_get(nc, "X")
+#extract sst anomalies:
+anom <- ncvar_get(nc,"ssta")
+
+```
+
+##Set the regio for Bay of Bengal : lat(5:25),lon(80:100)
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+lat_rng <- c(5,25)
+lon_rng <- c(80,100)
+lat_indx <- which(lat >= lat_rng[1] & lat <= lat_rng[2])
+lon_indx <-which(lon >= lon_rng[1] & lon <= lon_rng[2])
+```
+
+##extract the bay of bengal sst anomalies
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+anom_bob <- ncvar_get(nc,"ssta",start = c(lon_indx[1],lat_indx[1],1),count = c(length(lon_indx),length(lat_indx),-1))
+
+dim(anom_bob)
+
+```
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+#define which location is ocean or land
+s1 <- which(is.na(anom_bob[,,1]))
+s2 <- which(!is.na(anom_bob[,,1]))
+print(length(s2))
+```
+##out of 7*10=70 grid cells,there are 17 cells on the land where no data are available.
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+#vectorize the SST anomalies
+ssta <- matrix(0,nrow = dim(anom_bob)[3],ncol = length(s2))
+for(i in 1:dim(anom_bob)[3])
+  ssta[i,] <- anom_bob[,,i][-s1]
+```
+
+###Detect the dominant pattern
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+###Detect the dominant pattern
+#extract the eofs of data
+eof <- svd(ssta)$v
+```
+
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+#define the location 
+loc <- as.matrix(expand.grid(x=lon[lon_indx],y=lat[lat_indx]))[s2,]
+coltab <- colorRampPalette(brewer.pal(9,"BrBG"))(2048)
+```
+
+#######plot the first EOF
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+par(mar=c(4,4,2,3),oma=c(1,1,1,1))
+quilt.plot(loc,eof[,1],nx=length(lon[lon_indx]),ny=length(lat[lat_indx]),xlab="longitude",ylab="latitude",main="1st EOF",col = coltab)
+map(database = "world",fill = TRUE,col="gray",ylim = c(5,25),xlim = c(80,100),add = TRUE)
+
+```
+
+######plot the Second EOF
+
+```{r, echo=TRUE,include=TRUE, eval=TRUE}
+par(mar=c(4,4,2,3),oma=c(1,1,1,1))
+quilt.plot(loc,eof[,2],nx=length(lon[lon_indx]),ny=length(lat[lat_indx]),xlab="longitude",ylab="latitude",main="2nd EOF",col = coltab)
+map(database = "world",fill = TRUE,col="gray",ylim = c(5,25),xlim = c(80,100),add = TRUE)
+```
+
